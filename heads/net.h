@@ -193,7 +193,7 @@ inline void save(const NeuralNetworkTrainer &d, const char *filename)
         {
             for (double weight : neuron)
             {
-                fprintf(f, "%.6lf ", weight);
+                fprintf(f, "%.12lf ", weight);
             }
         }
     }
