@@ -1,87 +1,19 @@
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <random>
 #include <vector>
+
+namespace Net
+{
 
 class NeuralNetworkTrainer
 {
   public:
     NeuralNetworkTrainer()
     {
-        // Initialize weights with random values
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_real_distribution<> dis(-1.0, 1.0);
-        for (auto &layer : weights)
-        {
-            for (auto &row : layer)
-            {
-                for (auto &weight : row)
-                {
-                    weight = dis(gen);
-                }
-            }
-        }
-    }
-
-    void train(const std::vector<bool> &input, const std::vector<double> &target)
-    {
-        // Forward propagation
-        std::vector<double> hidden(10, 0.0); // 10 hidden neurons
-        std::vector<double> output(16, 0.0);
-
-        for (int i = 0; i < 10; ++i)
-        {
-            for (int j = 0; j < 1024; ++j)
-            {
-                hidden[i] += weights[0][i][j] * input[j];
-            }
-            hidden[i] = sigmoid(hidden[i]);
-        }
-
-        for (int i = 0; i < 16; ++i)
-        {
-            for (int j = 0; j < 10; ++j)
-            {
-                output[i] += weights[1][i][j] * hidden[j];
-            }
-            output[i] = sigmoid(output[i]);
-        }
-
-        // Backward propagation
-        std::vector<double> output_error(16, 0.0);
-        std::vector<double> hidden_error(10, 0.0);
-
-        for (int i = 0; i < 16; ++i)
-        {
-            output_error[i] = (target[i] - output[i]) * sigmoid_derivative(output[i]);
-        }
-
-        for (int i = 0; i < 10; ++i)
-        {
-            for (int j = 0; j < 16; ++j)
-            {
-                hidden_error[i] += output_error[j] * weights[1][j][i];
-            }
-            hidden_error[i] *= sigmoid_derivative(hidden[i]);
-        }
-
-        // Update weights
-        for (int i = 0; i < 10; ++i)
-        {
-            for (int j = 0; j < 1024; ++j)
-            {
-                weights[0][i][j] += learning_rate * hidden_error[i] * input[j];
-            }
-        }
-
-        for (int i = 0; i < 16; ++i)
-        {
-            for (int j = 0; j < 10; ++j)
-            {
-                weights[1][i][j] += learning_rate * output_error[i] * hidden[j];
-            }
-        }
+        initializeWeights();
     }
 
     std::vector<std::vector<std::vector<double>>> getWeights() const
@@ -89,51 +21,150 @@ class NeuralNetworkTrainer
         return weights;
     }
 
-  private:
-    double sigmoid(double x)
+    void train(const std::vector<std::vector<bool>> &data, const std::vector<std::vector<double>> &targets, int epochs,
+               double learningRate)
     {
-        return 1.0 / (1.0 + std::exp(-x));
+        for (int epoch = 0; epoch < epochs; ++epoch)
+        {
+            for (size_t i = 0; i < data.size(); ++i)
+            {
+                std::vector<double> input(data[i].begin(), data[i].end());
+                std::vector<double> hidden = forward(input, 0);
+                std::vector<double> output = forward(hidden, 1);
+                backward(input, hidden, output, targets[i], learningRate);
+            }
+        }
     }
 
-    double sigmoid_derivative(double x)
+  private:
+    std::vector<std::vector<std::vector<double>>> weights;
+    std::vector<std::vector<double>> biases;
+
+    void initializeWeights()
+    {
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::normal_distribution<> d(0, 1);
+
+        weights.resize(2);
+        weights[0].resize(10, std::vector<double>(1024));
+        weights[1].resize(16, std::vector<double>(10));
+
+        biases.resize(2);
+        biases[0].resize(10, 0.0);
+        biases[1].resize(16, 0.0);
+
+        for (auto &layer : weights)
+        {
+            for (auto &neuron : layer)
+            {
+                double initFactor = sqrt(2.0 / neuron.size());
+                for (double &weight : neuron)
+                {
+                    weight = d(gen) * initFactor;
+                }
+            }
+        }
+    }
+
+    std::vector<double> forward(const std::vector<double> &input, int layer)
+    {
+        std::vector<double> output(weights[layer].size(), 0.0);
+
+        for (size_t i = 0; i < output.size(); ++i)
+        {
+            for (size_t j = 0; j < input.size(); ++j)
+            {
+                output[i] += input[j] * weights[layer][i][j];
+            }
+            output[i] += biases[layer][i];
+            output[i] = sigmoid(output[i]);
+        }
+
+        return output;
+    }
+
+    void backward(const std::vector<double> &input, const std::vector<double> &hidden,
+                  const std::vector<double> &output, const std::vector<double> &target, double learningRate)
+    {
+        std::vector<double> outputError(output.size());
+        std::vector<double> hiddenError(hidden.size());
+
+        // Calculate output layer error
+        for (size_t i = 0; i < output.size(); ++i)
+        {
+            outputError[i] = (output[i] - target[i]) * sigmoidDerivative(output[i]);
+        }
+
+        // Calculate hidden layer error
+        for (size_t i = 0; i < hidden.size(); ++i)
+        {
+            hiddenError[i] = 0.0;
+            for (size_t j = 0; j < output.size(); ++j)
+            {
+                hiddenError[i] += outputError[j] * weights[1][j][i];
+            }
+            hiddenError[i] *= sigmoidDerivative(hidden[i]);
+        }
+
+        // Update weights and biases for hidden to output
+        for (size_t i = 0; i < output.size(); ++i)
+        {
+            for (size_t j = 0; j < hidden.size(); ++j)
+            {
+                weights[1][i][j] -= learningRate * outputError[i] * hidden[j];
+            }
+            biases[1][i] -= learningRate * outputError[i];
+        }
+
+        // Update weights and biases for input to hidden
+        for (size_t i = 0; i < hidden.size(); ++i)
+        {
+            for (size_t j = 0; j < input.size(); ++j)
+            {
+                weights[0][i][j] -= learningRate * hiddenError[i] * input[j];
+            }
+            biases[0][i] -= learningRate * hiddenError[i];
+        }
+    }
+
+    static double sigmoid(double x)
+    {
+        return 1.0 / (1.0 + exp(-x));
+    }
+
+    static double sigmoidDerivative(double x)
     {
         return x * (1.0 - x);
     }
-
-    std::vector<std::vector<std::vector<double>>> weights = {
-        std::vector<std::vector<double>>(10, std::vector<double>(1024, 0.0)),
-        std::vector<std::vector<double>>(16, std::vector<double>(10, 0.0))};
-
-    double learning_rate = 0.1;
 };
 
 class NeuralNetworkGenerator
 {
   public:
-    NeuralNetworkGenerator(const std::vector<std::vector<std::vector<double>>> &trained_weights)
-        : weights(trained_weights)
+    NeuralNetworkGenerator(const std::vector<std::vector<std::vector<double>>> &weights) : weights(weights)
     {
     }
 
     std::vector<double> generate(const std::vector<bool> &input)
     {
-        std::vector<double> hidden(10, 0.0);
-        std::vector<double> output(16, 0.0);
+        std::vector<double> inputDouble(input.begin(), input.end());
+        std::vector<double> hidden = forward(inputDouble, 0);
+        return forward(hidden, 1);
+    }
 
-        for (int i = 0; i < 10; ++i)
-        {
-            for (int j = 0; j < 1024; ++j)
-            {
-                hidden[i] += weights[0][i][j] * input[j];
-            }
-            hidden[i] = sigmoid(hidden[i]);
-        }
+  private:
+    std::vector<std::vector<std::vector<double>>> weights;
 
-        for (int i = 0; i < 16; ++i)
+    std::vector<double> forward(const std::vector<double> &input, int layer)
+    {
+        std::vector<double> output(weights[layer].size(), 0.0);
+
+        for (size_t i = 0; i < output.size(); ++i)
         {
-            for (int j = 0; j < 10; ++j)
+            for (size_t j = 0; j < input.size(); ++j)
             {
-                output[i] += weights[1][i][j] * hidden[j];
+                output[i] += input[j] * weights[layer][i][j];
             }
             output[i] = sigmoid(output[i]);
         }
@@ -141,56 +172,72 @@ class NeuralNetworkGenerator
         return output;
     }
 
-  private:
-    double sigmoid(double x)
+    static double sigmoid(double x)
     {
-        return 1.0 / (1.0 + std::exp(-x));
+        return 1.0 / (1.0 + exp(-x));
     }
-
-    std::vector<std::vector<std::vector<double>>> weights;
 };
-inline void save(const NeuralNetworkTrainer &d)
+
+inline void save(const NeuralNetworkTrainer &d, const char *filename)
 {
     auto data = d.getWeights();
-    FILE *f = fopen("./data.txt", "w");
-    for (int i = 0; i < 10; i++)
+    FILE *f = fopen(filename, "w");
+    if (!f)
     {
-        for (int j = 0; j < 1024; j++)
-        {
-            fprintf(f, "%.5lf ", data[0][i][j]);
-        }
+        std::cerr << "Failed to open file for writing\n";
+        return;
     }
-    for (int i = 0; i < 16; i++)
+    for (auto &layer : data)
     {
-        for (int j = 0; j < 10; j++)
+        for (auto &neuron : layer)
         {
-            fprintf(f, "%.5lf ", data[1][i][j]);
+            for (double weight : neuron)
+            {
+                fprintf(f, "%.6lf ", weight);
+            }
         }
     }
     fclose(f);
 }
-inline NeuralNetworkGenerator read()
+
+inline NeuralNetworkGenerator read(const char *filename)
 {
     std::vector<std::vector<std::vector<double>>> data(2);
-    FILE *f = fopen("./data.txt", "r");
-    data[0].resize(10);
-    for (int i = 0; i < 10; i++)
+    FILE *f = fopen(filename, "r");
+    if (!f)
     {
-        data[0][i].resize(1024);
-        for (int j = 0; j < 1024; j++)
+        std::cerr << "Failed to open file for reading\n";
+        throw std::runtime_error("File open failed");
+    }
+
+    data[0].resize(10, std::vector<double>(1024));
+    for (auto &neuron : data[0])
+    {
+        for (double &weight : neuron)
         {
-            fscanf(f, "%lf ", &data[0][i][j]);
+            if (fscanf(f, "%lf ", &weight) != 1)
+            {
+                fclose(f);
+                throw std::runtime_error("File read failed");
+            }
         }
     }
-    data[1].resize(16);
-    for (int i = 0; i < 16; i++)
+
+    data[1].resize(16, std::vector<double>(10));
+    for (auto &neuron : data[1])
     {
-        data[1][i].resize(10);
-        for (int j = 0; j < 10; j++)
+        for (double &weight : neuron)
         {
-            fscanf(f, "%lf ", &data[1][i][j]);
+            if (fscanf(f, "%lf ", &weight) != 1)
+            {
+                fclose(f);
+                throw std::runtime_error("File read failed");
+            }
         }
     }
+
     fclose(f);
     return NeuralNetworkGenerator(data);
 }
+
+} // namespace Net

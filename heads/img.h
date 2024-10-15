@@ -129,7 +129,7 @@ inline void getArgs(int t, double &M, double &Mh, double &Mw, double &R, double 
     }
 }
 // 干扰图像
-inline vector<vector<bool>> dirtyImg(const vector<vector<bool>> &original, int t = 50)
+inline vector<vector<bool>> dirtyImg(const vector<vector<bool>> &original, int t = 100)
 {
     double M, Mh, Mw, R, Sx, Sy, P;
     getArgs(t, M, Mh, Mw, R, Sx, Sy, P);
@@ -155,7 +155,7 @@ inline vector<vector<bool>> dirtyImg(const vector<vector<bool>> &original, int t
     return distorted;
 }
 // 获取带干扰图像
-inline vector<vector<bool>> getDirtyImg(char original, int t = 50)
+inline vector<vector<bool>> getDirtyImg(char original, int t = 100)
 {
     return dirtyImg(getOriImg(original), t);
 }
@@ -264,13 +264,25 @@ inline vector<vector<bool>> img(char c)
 // 打印图像
 inline void ptImg(const vector<vector<bool>> &v, FILE *f = stdout)
 {
-    for (int i = 0; i < 32; i++)
+    for (const auto &row : v)
     {
-        for (int j = 0; j < 32; j++)
+        for (const auto &val : row)
         {
-            fprintf(f, "%c", v[i][j] ? '#' : '.');
+            fprintf(f, "%c", val ? '#' : '.');
         }
         fprintf(f, "\n");
     }
+}
+inline vector<bool> getBit(const vector<vector<bool>> &v)
+{
+    vector<bool> r;
+    for (const auto &row : v)
+    {
+        for (const auto &val : row)
+        {
+            r.push_back(val);
+        }
+    }
+    return r;
 }
 } // namespace Img
