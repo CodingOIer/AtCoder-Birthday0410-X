@@ -1,0 +1,7 @@
+CompileFlags:
+  Add:
+    - "-DLOCAL"
+    - "-Wall"
+    - "-std=c++17"
+    - "-Wextra"
+    - "-Wpedantic"
